@@ -307,8 +307,7 @@ body.pdf-export .teacher-sign-canvas{
   <section class="control-panel import-panel">
     <h1 class="panel-title">بيانات قرار تكليف المعلم بإعداد أسئلة الاختبارات</h1>
     <div class="actions">
-      <button class="btn btn-primary" onclick="buildPagesFromEditor()">إنشاء النماذج</button>
-      <button class="btn btn-secondary" onclick="browserPrint()">طباعة النماذج</button>
+<button class="btn btn-primary" onclick="buildPagesFromEditor(); setTimeout(refreshMobileLayout, 300)">إنشاء النماذج</button>      <button class="btn btn-secondary" onclick="browserPrint()">طباعة النماذج</button>
       <button class="btn btn-muted" onclick="generateA4Pdf(true)">تنزيل PDF</button>
       <button class="btn btn-outline" onclick="addEditorRow()">إضافة معلم/مادة</button>
       <button class="btn btn-outline" onclick="sortRecordsByGrade()">إعادة الترتيب حسب الصفوف</button>
@@ -2243,6 +2242,25 @@ function attachAutoSave(){
 }
 
 window.addEventListener('load',()=>{loadAppState();applyDefaultMetaValues(false);attachAutoSave();renderEditor();buildPagesFromEditor();});
+  function refreshMobileLayout(){
+  const wrap = document.getElementById('pages');
+  if(!wrap) return;
+
+  requestAnimationFrame(() => {
+    wrap.style.display = 'none';
+    void wrap.offsetHeight;
+    wrap.style.display = '';
+
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+      document.body.style.minHeight = '100.1dvh';
+
+      setTimeout(() => {
+        document.body.style.minHeight = '';
+      }, 80);
+    }, 120);
+  });
+}
 </script>
 </body>
 </html>
