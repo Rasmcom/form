@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>قرار تكليف المعلمين بإعداد أسئلة الاختبارات مدارس الصالحية الأهلية  </title>
+<title>قرار تكليف المعلمات بإعداد أسئلة الاختبارات مدارس الصالحية الأهلية  </title>
 <!-- v32: print safety inset + no signature frame/buttons + rtl rule markers -->
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -358,7 +358,7 @@ body.pdf-export .teacher-sign-canvas{
           <thead>
             <tr>
               <th class="narrow">م</th>
-              <th>اسم المعلم</th>
+              <th>اسم المعلمة</th>
               <th>المادة</th>
               <th>الصف</th>
               <th>الفصل / الشعبة</th>
@@ -1859,7 +1859,7 @@ function renderSheet(meta,teacher,rows,pageIndex,totalPages){
           <td class="value" style="width:16mm">7</td>
         </tr>
       </table>
-      <div class="address"><span>المكرم الأستاذ /</span><span class="teacher-name">${esc(teacher || '........................................')}</span><span>حفظه الله</span></div>
+      <div class="address"><span>المكرمة الأستاذة /</span><span class="teacher-name">${esc(teacher || '........................................')}</span><span>حفظها الله</span></div>
       <div class="intro">
         السلام عليكم ورحمة الله وبركاته، وبعد: نظرًا لقرب اختبارات الفصل الدراسي ${esc(meta.termName)} لعام ${esc(meta.schoolYear)}، فقد تقرر تكليفكم بوضع الأسئلة ونماذج الإجابة للمواد والصفوف الموضحة أدناه، مع الالتزام بالمعايير والضوابط المنظمة لأعمال الاختبارات.
       </div>
@@ -1868,26 +1868,26 @@ function renderSheet(meta,teacher,rows,pageIndex,totalPages){
       ${renderRules()}
       <div class="footer-sign">
         <div class="sign-box">
-          <div class="sign-title">معد الأسئلة</div>
+          <div class="sign-title">معدة الأسئلة</div>
           <div class="sign-name">${esc(teacher || '')}</div>
           <div class="teacher-sign-wrapper">
-            <canvas class="teacher-sign-canvas" data-signature-key="${escAttr(signatureKeyFor('maker', teacher || ''))}" aria-label="توقيع معد الأسئلة"></canvas>
+            <canvas class="teacher-sign-canvas" data-signature-key="${escAttr(signatureKeyFor('maker', teacher || ''))}" aria-label="توقيع معدة الأسئلة"></canvas>
             <button type="button" class="sign-clear-btn no-print" onclick="clearSignatureByKey('${escAttr(signatureKeyFor('maker', teacher || ''))}')">مسح التوقيع</button>
           </div>
         </div>
         <div class="sign-box">
-          <div class="sign-title">رئيس لجنة الاختبارات</div>
+          <div class="sign-title">رئيسة لجنة الاختبارات</div>
           <div class="sign-name">فاطمة الأسمري</div>
           <div class="teacher-sign-wrapper">
-            <canvas class="teacher-sign-canvas" data-signature-key="${escAttr(signatureKeyFor('committee', 'فاطمة الأسمري'))}" aria-label="توقيع رئيس لجنة الاختبارات"></canvas>
+            <canvas class="teacher-sign-canvas" data-signature-key="${escAttr(signatureKeyFor('committee', 'فاطمة الأسمري'))}" aria-label="توقيع رئيسة لجنة الاختبارات"></canvas>
             <button type="button" class="sign-clear-btn no-print" onclick="clearSignatureByKey('${escAttr(signatureKeyFor('committee', 'فاطمة الأسمري'))}')">مسح التوقيع</button>
           </div>
         </div>
         <div class="sign-box">
-          <div class="sign-title">مدير/ة المدرسة</div>
+          <div class="sign-title">مديرة المدرسة</div>
           <div class="sign-name">فاطمة الأسمري</div>
           <div class="teacher-sign-wrapper">
-            <canvas class="teacher-sign-canvas" data-signature-key="${escAttr(signatureKeyFor('principal', 'فاطمة الأسمري'))}" aria-label="توقيع مدير المدرسة"></canvas>
+            <canvas class="teacher-sign-canvas" data-signature-key="${escAttr(signatureKeyFor('principal', 'فاطمة الأسمري'))}" aria-label="توقيع مديرة المدرسة"></canvas>
             <button type="button" class="sign-clear-btn no-print" onclick="clearSignatureByKey('${escAttr(signatureKeyFor('principal', 'فاطمة الأسمري'))}')">مسح التوقيع</button>
           </div>
         </div>
