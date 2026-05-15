@@ -321,7 +321,7 @@ body.pdf-export .teacher-sign-canvas{
       <div class="field system-hidden"><label class="lbl">اسم المدرسة</label><input id="schoolName" class="fi" value=""></div>
       <div class="field system-hidden"><label class="lbl">الإدارة العامة للتعليم</label><input id="eduAdmin" class="fi" value="الإدارة العامة للتعليم بمنطقة"></div>
       <div class="field"><label class="lbl">العام الدراسي</label><input id="schoolYear" class="fi" value="١٤٤٧ هـ"></div>
-      <div class="field"><label class="lbl">الفترة الدراسية</label><input id="studyPeriod" class="fi" value="الثانية"></div>
+      <div class="field"><label class="lbl">الفصل الدراسي</label><input id="studyPeriod" class="fi" value="الثاني"></div>
       <div class="field"><label class="lbl">الدور</label><input id="examRound" class="fi" value="الأول"></div>
       <div class="field"><label class="lbl">الفصل الدراسي</label><input id="termName" class="fi" value="الثاني"></div>
       <div class="field system-hidden"><label class="lbl">مدير المدرسة</label><input id="principalName" class="fi" value=""></div>
@@ -623,7 +623,7 @@ function isBadToken(value){
   const v=normalizeCell(value);
   if(!v) return true;
   if(/^(م|المادة|الصف|المعلم|اسم المعلم|الفصل|الشعبة|رقم|اسم النموذج|رقم النموذج)$/i.test(v)) return true;
-  if(/(المملكة العربية السعودية|وزارة التعليم|الإدارة العامة|العام الدراسي|الفترة الدراسية|الدور|السلام عليكم|يراعى عند|المعايير|الشروط|حفظه الله|مدير المدرسة|رئيس لجنة)/.test(v)) return true;
+  if(/(المملكة العربية السعودية|وزارة التعليم|الإدارة العامة|العام الدراسي|الفصل الدراسي|الدور|السلام عليكم|يراعى عند|المعايير|الشروط|حفظه الله|مدير المدرسة|رئيس لجنة)/.test(v)) return true;
   return false;
 }
 function scoreCandidate(r){
@@ -1847,7 +1847,7 @@ function renderSheet(meta,teacher,rows,pageIndex,totalPages){
         <div class="logo-wrap"><img src="logomoe.png" alt="شعار وزارة التعليم"></div>
         <div class="header-col header-meta">
           <div>العام الدراسي: ${esc(meta.schoolYear)}</div>
-          <div>الفترة الدراسية: ${esc(meta.studyPeriod)}</div>
+          <div>الفصل الدراسي: ${esc(meta.studyPeriod)}</div>
           <div>الدور: ${esc(meta.examRound)}</div>
         </div>
       </div>
