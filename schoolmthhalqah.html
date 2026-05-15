@@ -382,7 +382,7 @@ body.pdf-export .teacher-sign-canvas{
           <tbody id="editorBody"></tbody>
         </table>
       </div>
-      <div class="viewer-note">كل معلم يُطبع له خطاب مستقل، ويظهر اسم المعلم أعلى الخطاب، أما الجدول فيعرض المادة والصف فقط. عند زيادة التكليفات عن ٤ صفوف للمعلم تُنشأ صفحة متابعة تلقائيًا.</div>
+      <div class="viewer-note">كل معلم يُطبع له خطاب مستقل، ويظهر اسم المعلم أعلى الخطاب، أما الجدول فيعرض المادة والصف فقط. عند رفع كشف معلمين تُقرأ الأسماء والتخصصات كما تظهر في الملف، ويظل اختيار مواد التكليف والصفوف والشعب من نافذة التوزيع يدويًا. عند زيادة التكليفات عن ٤ صفوف للمعلم تُنشأ صفحة متابعة تلقائيًا.</div>
     </div>
   </section>
 
@@ -452,7 +452,7 @@ body.pdf-export .teacher-sign-canvas{
       <label style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:900;color:#0a2440;margin-inline-start:auto">
         <input type="checkbox" id="replaceRecordsOnSave" checked style="accent-color:#0f766e"> استبدال جدول المراجعة الحالي بعد الحفظ
       </label>
-      <div class="assign-help" style="width:100%">حدّد مرحلة أو أكثر لكل معلم، ثم اختر الصفوف والشعب أولًا لتظهر مواد الاختبار المناسبة. تظهر أسماء المواد مختصرة في البوب أب، بينما تُحفظ وتُطبع بالأسماء الرسمية الكاملة.</div>
+      <div class="assign-help" style="width:100%">حدّد مرحلة أو أكثر لكل معلم، ثم اختر الصفوف والشعب أولًا لتظهر مواد الاختبار المناسبة. لا يتم اعتماد التخصص كمادة تلقائيًا؛ استخدم زر التحديد التلقائي حسب التخصص فقط عند رغبتك بذلك.</div>
     </div>
 
     <div style="overflow:auto;max-height:48vh;border:1px solid #e2e8f0;border-radius:12px">
@@ -892,7 +892,7 @@ function parseTeacherDirectoryFromPdfItems(allItems){
       }
     });
   });
-  return dedupeTeachers(teachers);
+  return teachers;
 }
 function dedupeTeachers(list){
   const byKey=new Map();
@@ -1000,10 +1000,69 @@ function isDirectoryNameOnlyLine(parts){
   const arabic=(joined.match(/[\u0600-\u06FF]/g)||[]).length;
   return arabic>=3;
 }
+
+function parseStrictTeacherDirectoryRows(raw){
+  const source=String(raw||'').replace(/\u00a0/g,' ');
+  const lines=source.split(/\r?\n/).map(l=>normalizeDirectoryToken(l)).filter(Boolean);
+  const out=[];
+  const rowNumberRx=/^\d{1,3}$/;
+  const parsePackedLine=(line)=>{
+    let v=fixArabicPdfText(normalizeDirectoryToken(line));
+    v=v.replace(/^\d{1,3}\s*[|\-–—]?\s*/,'').trim();
+    v=v.replace(/\s*\|\s*/g,' ').trim();
+    const phoneMatch=v.match(/(966\d{8,}|05\d{8}|5\d{8})/);
+    if(!phoneMatch) return null;
+    const beforePhone=v.slice(0,phoneMatch.index).trim();
+    const afterPhone=v.slice(phoneMatch.index+phoneMatch[0].length).trim();
+    const arabicIndex=beforePhone.search(/[\u0600-\u06FF]/);
+    if(arabicIndex<1) return null;
+    const username=normalizeDirectoryToken(beforePhone.slice(0,arabicIndex));
+    const teacher=normalizeDirectoryToken(beforePhone.slice(arabicIndex));
+    if(!isLikelyDirectoryUsername(username) || !looksLikeTeacherName(teacher)) return null;
+    let subject='';
+    const tail=afterPhone.replace(/^(دائم|مؤقت|متعاقد|نشط)?\s*(معلم|معلمة)?\s*/,'').trim();
+    if(tail){
+      const tailParts=tail.split(/\s+/).filter(Boolean);
+      subject=tailParts.length ? tailParts.slice(-2).join(' ') : '';
+      if(!looksLikeSubject(subject) && tailParts.length) subject=tailParts[tailParts.length-1];
+    }
+    return {username,teacher,subject,rawSubject:subject,phone:phoneMatch[0]};
+  };
+
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    if(!rowNumberRx.test(toWesternDigits(line))) continue;
+    const packed=lines[i+1] || '';
+    const rec=parsePackedLine(packed);
+    if(!rec) continue;
+
+    let j=i+2;
+    // في بعض ملفات نور تأتي حالة التوظيف أو المسمى الوظيفي في سطر مستقل.
+    while(j<lines.length && /^(دائم|مؤقت|متعاقد|نشط|معلم|معلمة)$/i.test(normalizeKey(lines[j]))){
+      j++;
+    }
+    const field=lines[j] || '';
+    const specialty=lines[j+1] || '';
+    const subjectCandidate=simplifySubject(specialty || field || rec.subject || '');
+    appendTeacherIfValid(out,rec.teacher,subjectCandidate,rec.username);
+    i=Math.max(i,j+1);
+  }
+
+  // مسار احتياطي للسطور التي تظهر كسطر واحد كامل: الرقم + اسم المستخدم + الاسم + الجوال + بقية الأعمدة.
+  lines.forEach(line=>{
+    if(!/(966\d{8,}|05\d{8}|5\d{8})/.test(line)) return;
+    const rec=parsePackedLine(line);
+    if(rec) appendTeacherIfValid(out,rec.teacher,rec.subject,rec.username);
+  });
+
+  return out;
+}
+
 function appendTeacherIfValid(out,teacher,subject,username){
   const cleanTeacher=compactTeacherTokens(String(teacher||'').split(/\s+/).filter(Boolean));
-  const cleanSubject=simplifySubject(subject||'');
-  if(looksLikeTeacherName(cleanTeacher)) out.push({teacher:cleanTeacher,subject:cleanSubject,rawSubject:cleanSubject,username:username||''});
+  const cleanSpecialty=simplifySubject(subject||'');
+  // لا نحول التخصص إلى مادة تكليف تلقائيًا؛ يبقى الاختيار من نافذة التوزيع فقط.
+  if(looksLikeTeacherName(cleanTeacher)) out.push({teacher:cleanTeacher,subject:'',rawSubject:cleanSpecialty,username:username||''});
 }
 
 
@@ -1069,10 +1128,13 @@ function parseStructuredTeacherRows(raw){
   return dedupeTeachers(out);
 }
 function parseTeacherDirectoryFromText(raw){
+  // نجمع نتائج أكثر من مسار بدل إيقاف القراءة عند أول نتيجة؛ لأن بعض ملفات PDF الكبيرة
+  // قد تعطي جزءًا من المعلمين في القراءة المنظمة وجزءًا آخر في القراءة المرنة.
+  const collected=[];
   const structuredRows=parseStructuredTeacherRows(raw);
-  if(structuredRows.length) return structuredRows;
+  if(structuredRows.length) collected.push(...structuredRows);
   const looseRows=parseLooseTeacherRows(raw);
-  if(looseRows.length) return looseRows;
+  if(looseRows.length) collected.push(...looseRows);
   const lines=String(raw||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
   const out=[];
   let pendingNameParts=[];
@@ -1111,10 +1173,10 @@ function parseTeacherDirectoryFromText(raw){
       pendingNameParts=possibleNameParts.length>=2 ? possibleNameParts : [];
     }
   }
-  if(out.length) return dedupeTeachers(out);
+  collected.push(...out);
   const tokens=String(raw||'').replace(/\t/g,'|').split(/[|\n]+/).map(normalizeDirectoryToken).filter(Boolean);
-  extractTeacherRowsFromTokenStream(tokens).forEach(t=>out.push(t));
-  return dedupeTeachers(out);
+  extractTeacherRowsFromTokenStream(tokens).forEach(t=>collected.push(t));
+  return dedupeTeachers(collected);
 }
 const SUBJECTS_BY_STAGE={
   'المرحلة الابتدائية':['رياضيات','اللغة العربية','العلوم','اللغة الإنجليزية'],
@@ -1346,7 +1408,8 @@ function fallbackSubjectForTeacherStage(teacher,stage,rowIndex=null){
   const source=simplifySubject(teacher.subject || teacher.rawSubject || '');
   const subjects=rowIndex===null ? getStageSubjects(stage) : getAvailableSubjectsForTeacherStage(rowIndex,stage);
   const matched=subjects.find(subject=>specialtyMatchesSubject(source,subject,stage));
-  return matched || '';
+  // لا تجعل المادة فارغة؛ حتى لا يختفي المعلم عند حفظ توزيع كبير ويستطيع المستخدم تعديل المادة يدويًا لاحقًا.
+  return matched || source || 'حسب التخصص';
 }
 function normalizeSpecialtyForMatching(value){
 
@@ -1396,11 +1459,14 @@ function pendingTeacherKey(t){
   return 'n:'+normalizeKey(t?.teacher || '');
 }
 function normalizePendingTeacher(t,i=0,selectedDefault=true){
+  const specialty=simplifySubject(t.specialty || t.rawSubject || t.subject || '');
   return {
     id:t.username || t.id || `${normalizeKey(t.teacher)}_${i}`,
     teacher:cleanText(t.teacher),
-    subject:simplifySubject(t.subject || t.rawSubject || ''),
-    rawSubject:t.rawSubject || t.subject || '',
+    // المادة لا تؤخذ من التخصص تلقائيًا حتى لا تنزل التخصصات في جدول التكليف.
+    subject:cleanText(t.subject || '') === 'حسب التخصص' ? '' : cleanText(t.subject || ''),
+    rawSubject:specialty,
+    specialty,
     username:t.username || '',
     selected:selectedDefault,
     order:i+1
@@ -1435,11 +1501,18 @@ function mergePendingTeachers(incomingTeachers){
   const unselected=existing.filter(t=>!t.selected);
   return [...selected,...unselected];
 }
-function openTeacherFilterModal(teachers){
-  pendingPdfTeachers=mergePendingTeachers(teachers);
+function openTeacherFilterModal(teachers,replaceExisting=true){
+  if(replaceExisting){
+    // نحافظ على كل سجلات الملف كما هي، حتى لو تكرر اسم المعلم في أكثر من سجل.
+    pendingPdfTeachers=(teachers||[])
+      .map((t,i)=>normalizePendingTeacher(t,i,true))
+      .filter(t=>looksLikeTeacherName(t.teacher));
+  }else{
+    pendingPdfTeachers=mergePendingTeachers(teachers);
+  }
   renderTeacherFilterRows();
   const title=$('teacherFilterModalTitle');
-  if(title) title.textContent=`اختيار المعلمين الذين لديهم اختبار - ${pendingPdfTeachers.length} معلم`;
+  if(title) title.textContent=`اختيار سجلات المعلمين الذين لديهم اختبار - ${pendingPdfTeachers.length} سجل`;
   $('teacherFilterModal').classList.add('open');
   saveAppState();
 }
@@ -1455,7 +1528,7 @@ function renderTeacherFilterRows(){
       <td>${i+1}</td>
       <td><input type="checkbox" ${t.selected?'checked':''} onchange="togglePendingTeacher(${i},this.checked)"></td>
       <td><input type="text" value="${esc(t.teacher)}" oninput="pendingPdfTeachers[${i}].teacher=this.value;saveAppState()"></td>
-      <td>${esc(simplifySubject(t.subject || t.rawSubject || ''))}</td>
+      <td>${esc(t.specialty || '')}</td>
       <td><div class="order-tools"><button class="order-btn" onclick="movePendingTeacher(${i},-1)">↑</button><button class="order-btn" onclick="movePendingTeacher(${i},1)">↓</button></div></td>
       <td><button class="btn btn-danger" style="padding:5px 8px;font-size:10px" onclick="deletePendingTeacher(${i})">حذف</button></td>`;
     body.appendChild(tr);
@@ -1467,7 +1540,7 @@ function updateTeacherFilterSummary(){
   if(!el) return;
   const total=pendingPdfTeachers.length;
   const selected=pendingPdfTeachers.filter(t=>t.selected).length;
-  el.textContent=`المستخرج: ${total} معلم | المحدد للطباعة: ${selected} معلم`;
+  el.textContent=`المستخرج: ${total} سجل | المحدد للطباعة: ${selected} سجل`;
 }
 function reorderPendingTeachersBySelection(){
   const selected=pendingPdfTeachers.filter(t=>t.selected);
@@ -1488,7 +1561,7 @@ function openSavedTeacherCustomization(){
   reorderPendingTeachersBySelection();
   renderTeacherFilterRows();
   const title=$('teacherFilterModalTitle');
-  if(title) title.textContent=`تخصيص المعلمين الذين لديهم اختبار - ${pendingPdfTeachers.length} معلم`;
+  if(title) title.textContent=`تخصيص سجلات المعلمين الذين لديهم اختبار - ${pendingPdfTeachers.length} سجل`;
   $('teacherFilterModal').classList.add('open');
 }
 function deletePendingTeacher(i){
@@ -1570,14 +1643,14 @@ function sortRecordsByGrade(){
 }
 
 function openAssignmentModal(teachers){
-  extractedTeachers=dedupeTeachers(teachers).map((t,i)=>({id:i+1,stage:'المرحلة الابتدائية',stages:['المرحلة الابتدائية'],...t}));
+  // لا نحذف التكرارات هنا؛ المطلوب أن تنتقل كل سجلات الكشف للتوزيع كما وردت في الملف.
+  extractedTeachers=(teachers||[]).map((t,i)=>({id:i+1,stage:'المرحلة الابتدائية',stages:['المرحلة الابتدائية'],...t,subject:cleanText(t.subject||'')}));
   modalSelections={};
   renderTeacherAssignmentRows();
   const title=$('assignmentModalTitle');
-  if(title) title.textContent=`توزيع المواد والصفوف على المعلمين - ${extractedTeachers.length} معلم`;
+  if(title) title.textContent=`توزيع المواد والصفوف على سجلات المعلمين - ${extractedTeachers.length} سجل`;
   $('assignmentModal').classList.add('open');
   saveAppState();
-  setTimeout(autoSelectBySpecialty,0);
 }
 function closeAssignmentModal(){ $('assignmentModal').classList.remove('open'); }
 function refreshAssignmentOptions(){ renderTeacherAssignmentRows(); }
@@ -1596,7 +1669,7 @@ function renderTeacherAssignmentRows(){
     tr.innerHTML=`
       <td><div>${i+1}</div><button class="tiny-order-btn" onclick="moveExtractedTeacher(${i},-1)">↑</button><button class="tiny-order-btn" onclick="moveExtractedTeacher(${i},1)">↓</button></td>
       <td><input data-row="${i}" data-field="teacher" value="${esc(t.teacher)}" oninput="extractedTeachers[${i}].teacher=this.value;saveAppState()"></td>
-      <td>${esc(simplifySubject(t.subject || t.rawSubject || ''))}</td>
+      <td>${esc(t.specialty || '')}</td>
       <td><div class="stage-checklist">${stageChecks}</div></td>
       <td><div id="stageSubjectBox-${i}" class="subject-checklist"></div><div id="teacherSelectedBadges-${i}" class="selected-badges"></div></td>`;
     body.appendChild(tr);
@@ -1682,8 +1755,7 @@ function saveTeacherAssignments(){
     let teacherRowsCount=0;
     stages.forEach(stage=>{
       const selectedSubjects=(bucket[stage]||[]);
-      const fallback=fallbackSubjectForTeacherStage(t,stage,idx);
-      const subjects=selectedSubjects.length ? selectedSubjects : [fallback];
+      const subjects=selectedSubjects.length ? selectedSubjects : ['حسب توزيع اللجنة'];
       const grades=ensureNestedArray(modalGradeSelections,idx,stage);
       const gradeList=grades.length ? grades : [STAGE_PRINT_LABEL[stage]||stage];
       const sectionsText=selectedSectionsText(idx,stage);
@@ -1695,7 +1767,7 @@ function saveTeacherAssignments(){
       });
     });
     if(teacherRowsCount===0){
-      newRows.push({teacher:teacherName,subject:simplifySubject(t.subject||t.rawSubject||'حسب التخصص'),grade:'حسب التكليف',className:''});
+      newRows.push({teacher:teacherName,subject:'حسب توزيع اللجنة',grade:'حسب التكليف',className:''});
     }
   });
   if(!newRows.length){ alert('لم يتم استخراج أي معلم للحفظ.'); return; }
@@ -1714,6 +1786,7 @@ async function handlePdfImport(event){
     const pdf=await pdfjsLib.getDocument({data}).promise;
     let visualLines=[];
     let plainLines=[];
+    let sequentialLines=[];
     const allItems=[];
     for(let p=1;p<=pdf.numPages;p++){
       const page=await pdf.getPage(p);
@@ -1724,32 +1797,37 @@ async function handlePdfImport(event){
         const x=item.transform ? item.transform[4] : 0;
         const y=item.transform ? item.transform[5] : 0;
         allItems.push({page:p,x,y,str});
+        sequentialLines.push(str);
       });
       visualLines=visualLines.concat(pdfItemsToVisualLines(content.items));
       plainLines.push(content.items.map(item=>item.str).join(' '));
     }
     const visualText=visualLines.join('\n');
     const plainText=plainLines.join('\n');
-    $('pasteInput').value=visualText || plainText;
-    if(!visualText && !plainText){
+    const sequenceText=sequentialLines.join('\n');
+    $('pasteInput').value=visualText || sequenceText || plainText;
+    if(!visualText && !plainText && !sequenceText){
       alert('تعذر قراءة هذا الملف لأنه PDF مصور، يرجى رفع ملف Excel أو نسخ البيانات ولصقها.');
       return;
     }
 
-    const combinedTeacherText=visualText+'\n'+plainText;
+    const combinedTeacherText=sequenceText+'\n'+visualText+'\n'+plainText;
 
-    // ملفات كشف المعلمين تُقرأ بدقة من إحداثيات جدول PDF.
-    // لا ندمج معها القراءة النصية العامة؛ لأن القراءة النصية قد تلتقط رأس الصفحة أو تعيد ترتيب الأسماء وتسبب تكرارًا بعد آخر اسم.
-    const itemTeachers=parseTeacherDirectoryFromPdfItems(allItems);
-    if(itemTeachers.length){
-      openTeacherFilterModal(itemTeachers);
+    // إذا كان الملف كشف معلمين من نظام نور/مدرستي، نعتمد قارئًا صارمًا مبنيًا على رقم السجل ثم اسم المستخدم ثم الاسم ثم الجوال.
+    // هذا يمنع دمج أسماء صفين متجاورين ويمنع تكرار المعلم الناتج عن دمج أكثر من طريقة قراءة.
+    const strictTeachers=parseStrictTeacherDirectoryRows(combinedTeacherText);
+    if(strictTeachers.length){
+      pendingPdfTeachers=[];
+      openTeacherFilterModal(strictTeachers,true);
       return;
     }
 
-    // هذا المسار احتياطي فقط إذا كان PDF لا يحتوي جدول كشف المعلمين بإحداثيات واضحة.
+    const itemTeachers=parseTeacherDirectoryFromPdfItems(allItems);
     const textTeachers=parseTeacherDirectoryFromText(combinedTeacherText);
-    if(textTeachers.length){
-      openTeacherFilterModal(textTeachers);
+    const mergedTeachers=dedupeTeachers([...(itemTeachers||[]), ...(textTeachers||[])]);
+    if(mergedTeachers.length){
+      pendingPdfTeachers=[];
+      openTeacherFilterModal(mergedTeachers,true);
       return;
     }
 
@@ -1770,9 +1848,16 @@ async function handlePdfImport(event){
 
 function parsePasteData(){
   const raw=$('pasteInput').value || '';
+  const strictTeachers=parseStrictTeacherDirectoryRows(raw);
+  if(strictTeachers.length){
+    pendingPdfTeachers=[];
+    openTeacherFilterModal(strictTeachers,true);
+    return;
+  }
   const teachers=parseTeacherDirectoryFromText(raw);
   if(teachers.length){
-    openTeacherFilterModal(teachers);
+    pendingPdfTeachers=[];
+    openTeacherFilterModal(teachers,true);
     return;
   }
   const parsed=parseTextRecords(raw);
