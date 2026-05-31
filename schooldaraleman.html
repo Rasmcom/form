@@ -322,6 +322,7 @@ body.pdf-export .teacher-sign-canvas{
       <div class="field"><label class="lbl">الفترة الدراسية</label><input id="studyPeriod" class="fi" value="الثانية"></div>
       <div class="field"><label class="lbl">الدور</label><input id="examRound" class="fi" value="الأول"></div>
       <div class="field"><label class="lbl">الفصل الدراسي</label><input id="termName" class="fi" value="الثاني"></div>
+      <div class="field"> <label class="lbl">آخر موعد لتسليم الأسئلة</label> <input id="deliveryDeadline" class="fi" value="" placeholder="مثال: الأربعاء ١٤ / ١٢ / ١٤٤٧ هـ" oninput="saveAppState()"> </div>
       <div class="field system-hidden"><label class="lbl">مدير المدرسة</label><input id="principalName" class="fi" value=""></div>
       <div class="field system-hidden"><label class="lbl">رئيس لجنة الاختبارات</label><input id="committeeName" class="fi" value=""></div>
     </div>
@@ -1775,6 +1776,7 @@ function getMeta(){
     studyPeriod:cleanText($('studyPeriod').value),
     examRound:cleanText($('examRound').value),
     termName:cleanText($('termName').value),
+    deliveryDeadline:cleanText($('deliveryDeadline') ? $('deliveryDeadline').value : ''),
     principalName:cleanText($('principalName').value),
     committeeName:cleanText($('committeeName').value)
   };
@@ -1823,10 +1825,17 @@ function renderAssignments(chunkRows){
       </tbody>
     </table>`;
 }
-function renderRules(){
-  const mid=Math.ceil(rules.length/2);
-  const right=rules.slice(0,mid).map((r,i)=>`<li data-num="${i+1}">${esc(r)}</li>`).join('');
-  const left=rules.slice(mid).map((r,i)=>`<li data-num="${mid+i+1}">${esc(r)}</li>`).join('');
+function renderRules(meta={}){
+  const finalRules=[...rules];
+
+  if(meta.deliveryDeadline){
+    finalRules.push(`آخر موعد لتسليم الأسئلة ونماذج الإجابة: ${meta.deliveryDeadline}.`);
+  }
+
+  const mid=Math.ceil(finalRules.length/2);
+  const right=finalRules.slice(0,mid).map((r,i)=>`<li data-num="${i+1}">${esc(r)}</li>`).join('');
+  const left=finalRules.slice(mid).map((r,i)=>`<li data-num="${mid+i+1}">${esc(r)}</li>`).join('');
+
   return `<div class="rules"><ol class="rules-list">${right}</ol><ol class="rules-list">${left}</ol></div>`;
 }
 function renderSheet(meta,teacher,rows,pageIndex,totalPages){
@@ -1863,8 +1872,8 @@ function renderSheet(meta,teacher,rows,pageIndex,totalPages){
       </div>
       ${renderAssignments(rows)}
       <div class="note-title">ويراعى عند بناء وإعداد الأسئلة ونماذج الإجابة المعايير والشروط التالية:</div>
-      ${renderRules()}
-      <div class="footer-sign">
+${renderRules(meta)}
+<div class="footer-sign">
         <div class="sign-box">
           <div class="sign-title">معد الأسئلة</div>
           <div class="sign-name">${esc(teacher || '')}</div>
@@ -2184,7 +2193,7 @@ function applyDefaultMetaValues(force=false){
   });
 }
 function getMetaInputIds(){
-  return ['schoolName','eduAdmin','schoolYear','studyPeriod','examRound','termName','principalName','committeeName'];
+  return ['schoolName','eduAdmin','schoolYear','studyPeriod','examRound','termName','deliveryDeadline','principalName','committeeName'];
 }
 function collectMetaState(){
   const meta={};
