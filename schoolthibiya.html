@@ -169,6 +169,11 @@ textarea.fi{min-height:92px;resize:vertical;line-height:1.65;}
 .grade-check input,.section-check input{width:auto!important;margin:0;accent-color:#0f766e;}
 .section-grid{grid-template-columns:repeat(10,minmax(0,1fr));}
 .subject-group-actions{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px;}
+.grade-section-row{border:1px solid #e2e8f0;border-radius:8px;background:#fff;margin:5px 0;padding:5px;}
+.grade-section-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:5px;}
+.grade-section-head .grade-check{margin:0;background:#ecfeff;border-color:#67e8f9;}
+.grade-section-actions{display:flex;gap:4px;flex-wrap:wrap;}
+.grade-section-row .section-grid{margin-bottom:0;}
 .tiny-btn{border:1px solid #0f766e;background:#fff;color:#0f766e;border-radius:6px;padding:2px 6px;font-family:'Cairo',sans-serif;font-size:9px;font-weight:900;cursor:pointer;}
 
 @media screen and (max-width:900px){.materials-box{grid-template-columns:1fr}.assignment-modal,.teacher-filter-modal{width:100vw;height:100dvh;max-height:100dvh;border-radius:0;padding-bottom:calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.assign-list{min-width:820px}.assignment-modal>div[style*="overflow:auto"],.teacher-filter-modal>div[style*="overflow:auto"]{max-height:none!important;flex:1 1 auto;min-height:0}}
@@ -1231,7 +1236,7 @@ function toggleTeacherStage(rowIndex,stage,checked){
     const bucket=ensureTeacherSelectionBucket(rowIndex);
     bucket[stage]=[];
     if(modalGradeSelections[rowIndex]) modalGradeSelections[rowIndex][stage]=[];
-    if(modalSectionSelections[rowIndex]) modalSectionSelections[rowIndex][stage]=[];
+    if(modalSectionSelections[rowIndex]) delete modalSectionSelections[rowIndex][stage];
   }
   renderStageSubjectChecklist(rowIndex);
   saveAppState();
@@ -1245,12 +1250,41 @@ function toggleModalGrade(rowIndex,stage,grade,checked){
   renderStageSubjectChecklist(rowIndex);
   saveAppState();
 }
-function toggleModalSection(rowIndex,stage,section,checked){
-  const list=ensureNestedArray(modalSectionSelections,rowIndex,stage);
+function ensureStageSectionBucket(rowIndex,stage){
+  if(!modalSectionSelections[rowIndex]) modalSectionSelections[rowIndex]={};
+  const current=modalSectionSelections[rowIndex][stage];
+
+  // توافق مع الحفظ القديم: كان اختيار الشعب محفوظًا على مستوى المرحلة فقط.
+  // يتم تحويله تلقائيًا إلى اختيار مستقل لكل صف داخل المرحلة.
+  if(Array.isArray(current)){
+    const converted={};
+    const selectedGrades=ensureNestedArray(modalGradeSelections,rowIndex,stage);
+    const targetGrades=selectedGrades.length ? selectedGrades : getStageGrades(stage);
+    targetGrades.forEach(grade=>{ converted[grade]=[...current]; });
+    modalSectionSelections[rowIndex][stage]=converted;
+  }
+
+  if(!modalSectionSelections[rowIndex][stage] || typeof modalSectionSelections[rowIndex][stage] !== 'object'){
+    modalSectionSelections[rowIndex][stage]={};
+  }
+  return modalSectionSelections[rowIndex][stage];
+}
+function ensureGradeSectionArray(rowIndex,stage,grade){
+  const bucket=ensureStageSectionBucket(rowIndex,stage);
+  const gradeKey=cleanText(grade) || '__stage__';
+  if(!Array.isArray(bucket[gradeKey])) bucket[gradeKey]=[];
+  return bucket[gradeKey];
+}
+function toggleModalSection(rowIndex,stage,grade,section,checked){
+  const list=ensureGradeSectionArray(rowIndex,stage,grade);
   const key=normalizeKey(section);
   const exists=list.some(s=>normalizeKey(s)===key);
   if(checked && !exists) list.push(section);
-  if(!checked) modalSectionSelections[rowIndex][stage]=list.filter(s=>normalizeKey(s)!==key);
+  if(!checked){
+    const bucket=ensureStageSectionBucket(rowIndex,stage);
+    const gradeKey=cleanText(grade) || '__stage__';
+    bucket[gradeKey]=list.filter(s=>normalizeKey(s)!==key);
+  }
   saveAppState();
 }
 function setAllGradesForStage(rowIndex,stage,checked){
@@ -1259,9 +1293,21 @@ function setAllGradesForStage(rowIndex,stage,checked){
   renderStageSubjectChecklist(rowIndex);
   saveAppState();
 }
+function setAllSectionsForGrade(rowIndex,stage,grade,checked){
+  const bucket=ensureStageSectionBucket(rowIndex,stage);
+  const gradeKey=cleanText(grade) || '__stage__';
+  bucket[gradeKey]=checked ? [...SECTION_OPTIONS] : [];
+  renderStageSubjectChecklist(rowIndex);
+  saveAppState();
+}
 function setAllSectionsForStage(rowIndex,stage,checked){
-  modalSectionSelections[rowIndex]=modalSectionSelections[rowIndex]||{};
-  modalSectionSelections[rowIndex][stage]=checked ? [...SECTION_OPTIONS] : [];
+  const selectedGrades=ensureNestedArray(modalGradeSelections,rowIndex,stage);
+  const targetGrades=selectedGrades.length ? selectedGrades : getStageGrades(stage);
+  const bucket=ensureStageSectionBucket(rowIndex,stage);
+  targetGrades.forEach(grade=>{
+    const gradeKey=cleanText(grade) || '__stage__';
+    bucket[gradeKey]=checked ? [...SECTION_OPTIONS] : [];
+  });
   renderStageSubjectChecklist(rowIndex);
   saveAppState();
 }
@@ -1288,14 +1334,20 @@ function renderStageSubjectChecklist(rowIndex){
   target.innerHTML=stages.map(stage=>{
     const selectedSubjects=bucket[stage] || [];
     const selectedGrades=ensureNestedArray(modalGradeSelections,rowIndex,stage);
-    const selectedSections=ensureNestedArray(modalSectionSelections,rowIndex,stage);
-    const grades=getStageGrades(stage).map(grade=>{
-      const checked=selectedGrades.some(g=>normalizeKey(g)===normalizeKey(grade)) ? 'checked' : '';
-      return `<label class="grade-check"><input type="checkbox" ${checked} onchange="toggleModalGrade(${rowIndex},'${escAttr(stage)}','${escAttr(grade)}',this.checked)"> ${esc(grade.replace('الصف ',''))}</label>`;
-    }).join('');
-    const sections=SECTION_OPTIONS.map(section=>{
-      const checked=selectedSections.some(s=>normalizeKey(s)===normalizeKey(section)) ? 'checked' : '';
-      return `<label class="section-check"><input type="checkbox" ${checked} onchange="toggleModalSection(${rowIndex},'${escAttr(stage)}','${escAttr(section)}',this.checked)"> ${esc(section)}</label>`;
+    const gradeRows=getStageGrades(stage).map(grade=>{
+      const gradeChecked=selectedGrades.some(g=>normalizeKey(g)===normalizeKey(grade)) ? 'checked' : '';
+      const selectedSections=ensureGradeSectionArray(rowIndex,stage,grade);
+      const sections=SECTION_OPTIONS.map(section=>{
+        const checked=selectedSections.some(s=>normalizeKey(s)===normalizeKey(section)) ? 'checked' : '';
+        return `<label class="section-check"><input type="checkbox" ${checked} onchange="toggleModalSection(${rowIndex},'${escAttr(stage)}','${escAttr(grade)}','${escAttr(section)}',this.checked)"> ${esc(section)}</label>`;
+      }).join('');
+      return `<div class="grade-section-row">
+        <div class="grade-section-head">
+          <label class="grade-check"><input type="checkbox" ${gradeChecked} onchange="toggleModalGrade(${rowIndex},'${escAttr(stage)}','${escAttr(grade)}',this.checked)"> ${esc(grade.replace('الصف ',''))}</label>
+          <div class="grade-section-actions"><button type="button" class="tiny-btn" onclick="setAllSectionsForGrade(${rowIndex},'${escAttr(stage)}','${escAttr(grade)}',true)">كل شعب الصف</button><button type="button" class="tiny-btn" onclick="setAllSectionsForGrade(${rowIndex},'${escAttr(stage)}','${escAttr(grade)}',false)">مسح شعب الصف</button></div>
+        </div>
+        <div class="section-grid">${sections}</div>
+      </div>`;
     }).join('');
     const subjects=getAvailableSubjectsForTeacherStage(rowIndex,stage);
     const availableKeys=new Set(subjects.map(subject=>normalizeKey(subject)));
@@ -1307,9 +1359,8 @@ function renderStageSubjectChecklist(rowIndex){
     return `<div class="subject-group">
       <div class="subject-group-title">${esc(stage)}</div>
       <div class="grade-section-panel">
-        <div class="subject-group-actions"><button type="button" class="tiny-btn" onclick="setAllGradesForStage(${rowIndex},'${escAttr(stage)}',true)">كل الصفوف</button><button type="button" class="tiny-btn" onclick="setAllGradesForStage(${rowIndex},'${escAttr(stage)}',false)">مسح الصفوف</button><button type="button" class="tiny-btn" onclick="setAllSectionsForStage(${rowIndex},'${escAttr(stage)}',true)">كل الشعب</button><button type="button" class="tiny-btn" onclick="setAllSectionsForStage(${rowIndex},'${escAttr(stage)}',false)">مسح الشعب</button></div>
-        <div class="grade-section-title">الصفوف</div><div class="grade-grid">${grades}</div>
-        <div class="grade-section-title">الشعب</div><div class="section-grid">${sections}</div>
+        <div class="subject-group-actions"><button type="button" class="tiny-btn" onclick="setAllGradesForStage(${rowIndex},'${escAttr(stage)}',true)">كل الصفوف</button><button type="button" class="tiny-btn" onclick="setAllGradesForStage(${rowIndex},'${escAttr(stage)}',false)">مسح الصفوف</button><button type="button" class="tiny-btn" onclick="setAllSectionsForStage(${rowIndex},'${escAttr(stage)}',true)">كل الشعب للصفوف المحددة</button><button type="button" class="tiny-btn" onclick="setAllSectionsForStage(${rowIndex},'${escAttr(stage)}',false)">مسح الشعب للصفوف المحددة</button></div>
+        <div class="grade-section-title">الصفوف والشعب المستقلة لكل صف</div>${gradeRows}
       </div>
       <div class="subject-grid">${checks}</div>
     </div>`;
@@ -1323,10 +1374,11 @@ function formatGradeForPrint(stage,grade){
   if(normalizeKey(g).includes(normalizeKey(stageLabel))) return g;
   return `${g} - ${stageLabel}`;
 }
-function selectedSectionsText(rowIndex,stage){
-  const sections=ensureNestedArray(modalSectionSelections,rowIndex,stage);
+function selectedSectionsText(rowIndex,stage,grade){
+  const sections=ensureGradeSectionArray(rowIndex,stage,grade);
   return sections.length ? `الشعب: ${sections.join('، ')}` : '';
 }
+
 function fallbackSubjectForTeacherStage(teacher,stage,rowIndex=null){
   const source=simplifySubject(teacher.subject || teacher.rawSubject || '');
   const subjects=rowIndex===null ? getStageSubjects(stage) : getAvailableSubjectsForTeacherStage(rowIndex,stage);
@@ -1557,6 +1609,8 @@ function sortRecordsByGrade(){
 function openAssignmentModal(teachers){
   extractedTeachers=dedupeTeachers(teachers).map((t,i)=>({id:i+1,stage:'المرحلة الابتدائية',stages:['المرحلة الابتدائية'],...t}));
   modalSelections={};
+  modalGradeSelections={};
+  modalSectionSelections={};
   renderTeacherAssignmentRows();
   const title=$('assignmentModalTitle');
   if(title) title.textContent=`توزيع المواد والصفوف على المعلمين - ${extractedTeachers.length} معلم`;
@@ -1596,7 +1650,13 @@ function applyBulkStageToAllTeachers(){
     teacher.stage=stages[0];
     teacher.stages=[...stages];
     const bucket=ensureTeacherSelectionBucket(idx);
-    Object.keys(SUBJECTS_BY_STAGE).forEach(stage=>{ if(!stages.includes(stage)) bucket[stage]=[]; });
+    Object.keys(SUBJECTS_BY_STAGE).forEach(stage=>{
+      if(!stages.includes(stage)){
+        bucket[stage]=[];
+        if(modalGradeSelections[idx]) delete modalGradeSelections[idx][stage];
+        if(modalSectionSelections[idx]) delete modalSectionSelections[idx][stage];
+      }
+    });
   });
   renderTeacherAssignmentRows();
   saveAppState();
@@ -1632,6 +1692,8 @@ function selectAllTeachersFirstOption(){
 }
 function clearModalSelections(){
   modalSelections={};
+  modalGradeSelections={};
+  modalSectionSelections={};
   document.querySelectorAll('.teacher-custom-assign').forEach(t=>t.value='');
   extractedTeachers.forEach((teacher,idx)=>renderStageSubjectChecklist(idx));
   saveAppState();
@@ -1671,9 +1733,9 @@ function saveTeacherAssignments(){
       const subjects=selectedSubjects.length ? selectedSubjects : [fallback];
       const grades=ensureNestedArray(modalGradeSelections,idx,stage);
       const gradeList=grades.length ? grades : [STAGE_PRINT_LABEL[stage]||stage];
-      const sectionsText=selectedSectionsText(idx,stage);
       subjects.forEach(subject=>{
         gradeList.forEach(grade=>{
+          const sectionsText=selectedSectionsText(idx,stage,grade);
           newRows.push({teacher:teacherName,subject,grade:formatGradeForPrint(stage,grade),className:sectionsText});
           teacherRowsCount++;
         });
