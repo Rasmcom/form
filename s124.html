@@ -398,8 +398,8 @@ border-bottom:1px solid var(--grid);    }
     .header-top{
       margin-top:0!important;
       margin-bottom:6px!important;
-      min-height:56px!important;
-      height:56px!important;
+      min-height:76px!important;
+      height:76px!important;
       border-radius:0 0 12px 12px!important;
       grid-template-columns:68px 1fr!important;
       gap:8px!important;
@@ -437,8 +437,8 @@ border-bottom:1px solid var(--grid);    }
       .paper::before{height:6px!important;z-index:2!important;}
       .content{padding-top:6px!important;}
       .header-top{
-        min-height:56px!important;
-        height:56px!important;
+        min-height:76px!important;
+        height:76px!important;
         margin-top:0!important;
         margin-bottom:6px!important;
       }
@@ -1075,6 +1075,41 @@ border-bottom:1px solid var(--grid);    }
       .sign-table-two .sig-canvas,
       .sign-table-two img.sig-canvas{height:76px!important;min-height:76px!important;object-fit:contain!important;}
       .sign-table-two .sig-actions{display:none!important;}
+    }
+
+  
+    /* تعديل نهائي: ارتفاع التوقيع 76px */
+    .sign-table-two .sig-box{
+      height:76px!important;
+      min-height:76px!important;
+    }
+    .sign-table-two .sig-canvas,
+    .sign-table-two img.sig-canvas{
+      height:76px!important;
+      min-height:76px!important;
+      object-fit:contain!important;
+    }
+    .print-sheet .sign-table-two .sig-box{
+      height:76px!important;
+      min-height:76px!important;
+    }
+    .print-sheet .sign-table-two .sig-canvas,
+    .print-sheet .sign-table-two img.sig-canvas{
+      height:76px!important;
+      min-height:76px!important;
+      object-fit:contain!important;
+    }
+    @media print{
+      .sign-table-two .sig-box{
+        height:76px!important;
+        min-height:76px!important;
+      }
+      .sign-table-two .sig-canvas,
+      .sign-table-two img.sig-canvas{
+        height:76px!important;
+        min-height:76px!important;
+        object-fit:contain!important;
+      }
     }
 
   </style>
